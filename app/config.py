@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     app_debug: bool = False
     app_port: int = 8000
 
+    # Frontend URL for CORS
+    frontend_url: str = "http://localhost:5173"
+
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/automation_db"
 
