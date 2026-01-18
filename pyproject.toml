@@ -1,0 +1,22 @@
+[project]
+name = "automation-service"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aio-pika>=9.5.0",
+    "alembic>=1.18.1",
+    "asyncpg>=0.31.0",
+    "bcrypt>=5.0.0",
+    "cryptography>=46.0.3",
+    "fastapi>=0.128.0",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.12.0",
+    "pydantic[email]>=2.12.5",
+    "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.21",
+    "sqlalchemy[asyncio]>=2.0.45",
+    "structlog>=25.5.0",
+    "uvicorn[standard]>=0.40.0",
+]
