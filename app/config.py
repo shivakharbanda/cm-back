@@ -22,8 +22,17 @@ class Settings(BaseSettings):
     # Frontend URL for CORS
     frontend_url: str = "http://localhost:5173"
 
-    # Database
-    database_url: str = "postgresql+psycopg_async://postgres:postgres@localhost:5432/automation_db"
+    # Database - individual components
+    db_host: str = "localhost"
+    db_port: int = 5432
+    db_user: str = "postgres"
+    db_password: str = "postgres"
+    db_name: str = "automation_db"
+
+    @property
+    def database_url(self) -> str:
+        """Construct async database URL from components."""
+        return f"postgresql+psycopg_async://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     # JWT Settings
     jwt_secret_key: str = "your-super-secret-key-change-in-production"
