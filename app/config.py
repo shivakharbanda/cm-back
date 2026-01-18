@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
 
     # Database
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/automation_db"
+    database_url: str = "postgresql+psycopg_async://postgres:postgres@localhost:5432/automation_db"
 
     # JWT Settings
     jwt_secret_key: str = "your-super-secret-key-change-in-production"

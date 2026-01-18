@@ -26,7 +26,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/automation_db
+      - DATABASE_URL=postgresql+psycopg_async://postgres:postgres@postgres:5432/automation_db
       - APP_ENV=development
       - APP_DEBUG=true
       - JWT_SECRET_KEY=dev-secret-key-change-in-production
