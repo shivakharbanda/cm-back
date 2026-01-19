@@ -91,10 +91,17 @@ async def oauth_callback(
 
         return account
 
-    except Exception as e:
+    except ValueError as e:
+        # Sanitized error from instagram_client
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to link Instagram account: {str(e)}",
+            detail=str(e),
+        )
+    except Exception:
+        # Unknown error - don't expose details
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to link Instagram account",
         )
 
 

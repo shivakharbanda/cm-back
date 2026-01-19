@@ -59,33 +59,55 @@ class InstagramClient:
         return f"https://www.instagram.com/oauth/authorize?{urlencode(params)}"
 
     async def exchange_code_for_token(self, code: str) -> dict[str, Any]:
-        """Exchange authorization code for access token."""
+        """Exchange authorization code for access token.
+
+        Raises:
+            ValueError: With sanitized error message (safe to expose to users)
+        """
         async with httpx.AsyncClient() as client:
             # Exchange code for short-lived token
-            response = await client.post(
-                "https://api.instagram.com/oauth/access_token",
-                data={
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "grant_type": "authorization_code",
-                    "redirect_uri": self.redirect_uri,
-                    "code": code,
-                },
-            )
-            response.raise_for_status()
-            short_lived_data = response.json()
+            try:
+                response = await client.post(
+                    "https://api.instagram.com/oauth/access_token",
+                    data={
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "grant_type": "authorization_code",
+                        "redirect_uri": self.redirect_uri,
+                        "code": code,
+                    },
+                )
+                response.raise_for_status()
+                short_lived_data = response.json()
+            except httpx.HTTPStatusError as e:
+                # Extract Instagram's error message without exposing request details
+                try:
+                    error_data = e.response.json()
+                    error_msg = error_data.get("error_message", "Token exchange failed")
+                except Exception:
+                    error_msg = "Token exchange failed"
+                raise ValueError(error_msg) from None
 
             # Exchange for long-lived token
-            long_lived_response = await client.get(
-                f"{self.base_url}/access_token",
-                params={
-                    "grant_type": "ig_exchange_token",
-                    "client_secret": self.client_secret,
-                    "access_token": short_lived_data["access_token"],
-                },
-            )
-            long_lived_response.raise_for_status()
-            long_lived_data = long_lived_response.json()
+            try:
+                long_lived_response = await client.get(
+                    f"{self.base_url}/access_token",
+                    params={
+                        "grant_type": "ig_exchange_token",
+                        "client_secret": self.client_secret,
+                        "access_token": short_lived_data["access_token"],
+                    },
+                )
+                long_lived_response.raise_for_status()
+                long_lived_data = long_lived_response.json()
+            except httpx.HTTPStatusError as e:
+                # Extract Instagram's error message without exposing request details
+                try:
+                    error_data = e.response.json()
+                    error_msg = error_data.get("error_message", "Long-lived token exchange failed")
+                except Exception:
+                    error_msg = "Long-lived token exchange failed"
+                raise ValueError(error_msg) from None
 
             # Calculate expiry
             expires_in = long_lived_data.get("expires_in", 5184000)  # Default 60 days
