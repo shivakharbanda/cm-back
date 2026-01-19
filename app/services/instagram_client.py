@@ -1,6 +1,5 @@
 """Instagram OAuth and Graph API client."""
 
-import base64
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -28,12 +27,8 @@ class InstagramClient:
         """Lazy-load the Fernet cipher for token encryption."""
         if self._cipher is None:
             if not settings.encryption_key:
-                key = Fernet.generate_key()
-            else:
-                key = settings.encryption_key.encode()
-                if len(base64.urlsafe_b64decode(key)) != 32:
-                    key = Fernet.generate_key()
-            self._cipher = Fernet(key)
+                raise ValueError("ENCRYPTION_KEY environment variable is required")
+            self._cipher = Fernet(settings.encryption_key.encode())
         return self._cipher
 
     def encrypt_token(self, token: str) -> str:

@@ -216,11 +216,7 @@ class CommentProcessor:
         """Send a DM to the commenter."""
         try:
             # Decrypt the access token
-            try:
-                access_token = instagram_client.decrypt_token(account.access_token)
-            except Exception:
-                # Token might not be encrypted in dev
-                access_token = account.access_token
+            access_token = instagram_client.decrypt_token(account.access_token)
 
             # Send the message
             response = await instagram_client.send_message(

@@ -128,12 +128,7 @@ async def list_posts(
     account = await get_user_instagram_account(current_user, db)
 
     try:
-        # Use raw token if not encrypted (for local dev)
-        try:
-            access_token = instagram_client.decrypt_token(account.access_token)
-        except Exception:
-            access_token = account.access_token
-
+        access_token = instagram_client.decrypt_token(account.access_token)
         media_data = await instagram_client.get_user_media(
             access_token,
             account.instagram_user_id,
