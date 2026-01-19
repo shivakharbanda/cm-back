@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DBSession
+from app.config import settings
 from app.models import User
 from app.schemas.auth import (
     UserCreate,
@@ -27,7 +28,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,  # True in production (HTTPS only)
+        secure=not settings.is_development,  # True for HTTPS in production
         samesite="lax",
         max_age=ACCESS_TOKEN_MAX_AGE,
         path="/",
@@ -36,7 +37,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,  # True in production (HTTPS only)
+        secure=not settings.is_development,  # True for HTTPS in production
         samesite="lax",
         max_age=REFRESH_TOKEN_MAX_AGE,
         path="/",
