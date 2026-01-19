@@ -24,6 +24,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Log environment settings on startup
+print(f"[CONFIG] is_development: {settings.is_development}")
+print(f"[CONFIG] Cookies secure flag: {not settings.is_development}")
+print(f"[CONFIG] Frontend URL: {settings.frontend_url}")
+
 # CORS middleware (can't use allow_origins=["*"] with allow_credentials=True)
 app.add_middleware(
     CORSMiddleware,
