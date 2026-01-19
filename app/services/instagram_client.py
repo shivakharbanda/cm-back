@@ -46,15 +46,15 @@ class InstagramClient:
 
     def get_authorization_url(self, state: str | None = None) -> str:
         """Generate Instagram OAuth authorization URL."""
-        params = {
-            "client_id": self.client_id,
-            "redirect_uri": self.redirect_uri,
-            "scope": "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights",
-            "response_type": "code",
-            "force_reauth": "true",
-        }
+        params = [
+            ("force_reauth", "true"),
+            ("client_id", self.client_id),
+            ("redirect_uri", self.redirect_uri),
+            ("response_type", "code"),
+            ("scope", "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights"),
+        ]
         if state:
-            params["state"] = state
+            params.append(("state", state))
 
         return f"https://www.instagram.com/oauth/authorize?{urlencode(params)}"
 
