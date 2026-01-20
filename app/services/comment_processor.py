@@ -168,7 +168,11 @@ class CommentProcessor:
             return
 
         # Send the DM
-        success = await self._send_dm(event, automation, account)
+        dm_success = await self._send_dm(event, automation, account)
+
+        # Reply to comment if enabled and DM succeeded
+        if dm_success and automation.comment_reply_enabled and automation.comment_reply_template:
+            await self._reply_to_comment(event, automation, account)
 
         # Log the result
         await self._log_dm_sent(
@@ -176,7 +180,7 @@ class CommentProcessor:
             post_id=event.media_id,
             commenter_user_id=event.commenter_id,
             comment_id=event.comment_id,
-            status="sent" if success else "failed",
+            status="sent" if dm_success else "failed",
         )
 
     def _should_trigger(self, event: CommentEvent, automation: Automation) -> bool:
@@ -235,6 +239,33 @@ class CommentProcessor:
         except Exception as e:
             logger.error(
                 f"Failed to send DM to @{event.commenter_username}: {e}"
+            )
+            return False
+
+    async def _reply_to_comment(
+        self,
+        event: CommentEvent,
+        automation: Automation,
+        account: InstagramAccount,
+    ) -> bool:
+        """Reply to the comment publicly."""
+        try:
+            access_token = instagram_client.decrypt_token(account.access_token)
+
+            response = await instagram_client.reply_to_comment(
+                access_token=access_token,
+                comment_id=event.comment_id,
+                message=automation.comment_reply_template,
+            )
+
+            logger.info(
+                f"Comment reply sent to @{event.commenter_username}: {response}"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Failed to reply to comment from @{event.commenter_username}: {e}"
             )
             return False
 

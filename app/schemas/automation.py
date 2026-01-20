@@ -17,6 +17,8 @@ class AutomationCreate(BaseModel):
     trigger_type: TriggerType
     keywords: list[str] | None = None
     dm_message_template: str = Field(..., min_length=1)
+    comment_reply_enabled: bool = False
+    comment_reply_template: str | None = None
 
 
 class AutomationUpdate(BaseModel):
@@ -26,6 +28,8 @@ class AutomationUpdate(BaseModel):
     trigger_type: TriggerType | None = None
     keywords: list[str] | None = None
     dm_message_template: str | None = Field(None, min_length=1)
+    comment_reply_enabled: bool | None = None
+    comment_reply_template: str | None = None
 
 
 class AutomationResponse(BaseModel):
@@ -38,6 +42,8 @@ class AutomationResponse(BaseModel):
     trigger_type: TriggerType
     keywords: list[str] | None
     dm_message_template: str
+    comment_reply_enabled: bool
+    comment_reply_template: str | None
     is_active: bool
     created_at: datetime
     updated_at: datetime

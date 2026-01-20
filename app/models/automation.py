@@ -38,6 +38,12 @@ class Automation(Base, UUIDMixin, TimestampMixin):
     )
     keywords: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     dm_message_template: Mapped[str] = mapped_column(Text, nullable=False)
+    comment_reply_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    comment_reply_template: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships

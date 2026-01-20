@@ -200,5 +200,65 @@ class InstagramClient:
             response.raise_for_status()
             return response.json()
 
+    async def reply_to_comment(
+        self, access_token: str, comment_id: str, message: str
+    ) -> dict:
+        """
+        Reply to an Instagram comment.
+
+        POST /{ig-comment-id}/replies?message={message}
+
+        Limitations:
+        - Can only reply to top-level comments
+        - Cannot reply to hidden comments
+        - Cannot reply to comments on live videos
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/{comment_id}/replies",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params={"message": message},
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get("error", {}).get(
+                    "message", "Failed to reply to comment"
+                )
+            except Exception:
+                error_msg = "Failed to reply to comment"
+            raise ValueError(error_msg)
+
+    async def get_comment_replies(
+        self, access_token: str, comment_id: str
+    ) -> dict:
+        """
+        Get all replies on an Instagram comment.
+
+        GET /{ig-comment-id}/replies
+
+        Returns list of comments with timestamp, text, and id.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/{comment_id}/replies",
+                    params={"access_token": access_token},
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get("error", {}).get(
+                    "message", "Failed to get comment replies"
+                )
+            except Exception:
+                error_msg = "Failed to get comment replies"
+            raise ValueError(error_msg)
+
 
 instagram_client = InstagramClient()
