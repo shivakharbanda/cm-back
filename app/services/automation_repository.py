@@ -44,6 +44,8 @@ class AutomationRepository:
             trigger_type=data.trigger_type,
             keywords=data.keywords,
             dm_message_template=data.dm_message_template,
+            comment_reply_enabled=data.comment_reply_enabled,
+            comment_reply_template=data.comment_reply_template,
         )
 
         self.db.add(automation)
