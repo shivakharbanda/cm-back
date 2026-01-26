@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     # RabbitMQ
     rabbitmq_url: str = "amqp://admin:admin123@localhost:5672/"
 
+    # Link-in-Bio Settings
+    bio_page_enabled: bool = True
+
+    # GeoIP
+    geoip_database_path: str = "./data/GeoLite2-Country.mmdb"
+
+    # Analytics
+    analytics_retention_days: int = 90
+
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""

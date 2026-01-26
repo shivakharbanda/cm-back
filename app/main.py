@@ -5,7 +5,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth_router, automations_router, instagram_router
+from app.api.routes import (
+    auth_router,
+    automations_router,
+    instagram_router,
+    bio_pages_router,
+    bio_links_router,
+    bio_cards_router,
+    page_items_router,
+    routing_rules_router,
+    leads_router,
+    analytics_router,
+    public_bio_router,
+    social_links_router,
+    utils_router,
+)
 from app.config import settings
 from app.db import engine
 
@@ -42,6 +56,18 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(instagram_router, prefix="/api/v1")
 app.include_router(automations_router, prefix="/api/v1")
+
+# Link-in-Bio routers
+app.include_router(bio_pages_router, prefix="/api/v1")
+app.include_router(bio_links_router, prefix="/api/v1")
+app.include_router(bio_cards_router, prefix="/api/v1")
+app.include_router(page_items_router, prefix="/api/v1")
+app.include_router(routing_rules_router, prefix="/api/v1")
+app.include_router(leads_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(public_bio_router, prefix="/api/v1")
+app.include_router(social_links_router, prefix="/api/v1")
+app.include_router(utils_router, prefix="/api/v1")
 
 
 @app.get("/health")

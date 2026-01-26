@@ -1,12 +1,21 @@
 """Automation management routes."""
 
+from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DBSession
 from app.models import Automation
-from app.schemas.automation import AutomationCreate, AutomationResponse, AutomationUpdate
+from app.schemas.automation import (
+    AutomationCreate,
+    AutomationResponse,
+    AutomationUpdate,
+    AutomationAnalytics,
+    AutomationAnalyticsSummary,
+    AutomationCommentersResponse,
+    CommenterInfo,
+)
 from app.services.automation_repository import AutomationRepository
 
 router = APIRouter(prefix="/automations", tags=["automations"])
@@ -144,3 +153,73 @@ async def deactivate_automation(
         )
 
     return automation
+
+
+@router.get("/analytics/summary", response_model=dict[str, AutomationAnalyticsSummary])
+async def get_automations_analytics_summary(
+    current_user: CurrentUser,
+    db: DBSession,
+) -> dict[str, AutomationAnalyticsSummary]:
+    """Get summary analytics for all user's automations (for inline display)."""
+    repo = AutomationRepository(db)
+    return await repo.get_all_summaries(current_user.id)
+
+
+@router.get("/{automation_id}/analytics", response_model=AutomationAnalytics)
+async def get_automation_analytics(
+    automation_id: UUID,
+    current_user: CurrentUser,
+    db: DBSession,
+    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: date | None = Query(None, description="End date (YYYY-MM-DD)"),
+) -> AutomationAnalytics:
+    """Get analytics for a specific automation."""
+    repo = AutomationRepository(db)
+    analytics = await repo.get_analytics(
+        automation_id, current_user.id, start_date, end_date
+    )
+
+    if not analytics:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Automation not found",
+        )
+
+    return analytics
+
+
+@router.get("/{automation_id}/commenters", response_model=AutomationCommentersResponse)
+async def get_automation_commenters(
+    automation_id: UUID,
+    current_user: CurrentUser,
+    db: DBSession,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> AutomationCommentersResponse:
+    """Get list of people who received DMs from this automation."""
+    repo = AutomationRepository(db)
+    logs, total = await repo.get_commenters(automation_id, current_user.id, limit, offset)
+
+    if not logs and total == 0:
+        automation = await repo.get_by_id(automation_id, current_user.id)
+        if not automation:
+            raise HTTPException(status_code=404, detail="Automation not found")
+
+    return AutomationCommentersResponse(
+        automation_id=str(automation_id),
+        commenters=[
+            CommenterInfo(
+                user_id=log.commenter_user_id,
+                username=log.commenter_username,
+                name=log.commenter_name,
+                biography=log.commenter_biography,
+                followers_count=log.commenter_followers_count,
+                media_count=log.commenter_media_count,
+                profile_picture_url=log.commenter_profile_picture_url,
+                dm_sent_at=log.sent_at,
+                status=log.status,
+            )
+            for log in logs
+        ],
+        total=total,
+    )

@@ -63,3 +63,54 @@ class DMSentLogResponse(BaseModel):
     sent_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AutomationAnalyticsSummary(BaseModel):
+    """Summary metrics for inline display on automation cards."""
+
+    dms_sent: int
+    people_reached: int
+
+
+class DatePoint(BaseModel):
+    """Single data point for timeline chart."""
+
+    date: str  # YYYY-MM-DD
+    value: int
+
+
+class AutomationAnalytics(BaseModel):
+    """Full analytics data for an automation."""
+
+    automation_id: str
+    total_dms_sent: int
+    total_dms_failed: int
+    dm_success_rate: float  # percentage
+    unique_people_reached: int
+    total_comment_replies: int
+    total_comment_replies_failed: int
+    comment_reply_success_rate: float
+    dms_by_date: list[DatePoint]
+    replies_by_date: list[DatePoint]
+
+
+class CommenterInfo(BaseModel):
+    """Full profile info for a person who received a DM."""
+
+    user_id: str
+    username: str | None
+    name: str | None
+    biography: str | None
+    followers_count: int | None
+    media_count: int | None
+    profile_picture_url: str | None
+    dm_sent_at: datetime
+    status: str
+
+
+class AutomationCommentersResponse(BaseModel):
+    """List of people who received DMs from an automation."""
+
+    automation_id: str
+    commenters: list[CommenterInfo]
+    total: int

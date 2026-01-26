@@ -13,6 +13,7 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.models.automation import Automation
     from app.models.user import User
+    from app.models.bio_page import BioPage
 
 
 class InstagramAccount(Base, UUIDMixin, TimestampMixin):
@@ -39,5 +40,11 @@ class InstagramAccount(Base, UUIDMixin, TimestampMixin):
     automations: Mapped[list["Automation"]] = relationship(
         "Automation",
         back_populates="instagram_account",
+        cascade="all, delete-orphan",
+    )
+    bio_page: Mapped["BioPage | None"] = relationship(
+        "BioPage",
+        back_populates="instagram_account",
+        uselist=False,
         cascade="all, delete-orphan",
     )

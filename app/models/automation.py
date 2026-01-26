@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,6 +56,11 @@ class Automation(Base, UUIDMixin, TimestampMixin):
         back_populates="automation",
         cascade="all, delete-orphan",
     )
+    comment_reply_logs: Mapped[list["CommentReplyLog"]] = relationship(
+        "CommentReplyLog",
+        back_populates="automation",
+        cascade="all, delete-orphan",
+    )
 
 
 class DMSentLog(Base, UUIDMixin):
@@ -79,8 +84,52 @@ class DMSentLog(Base, UUIDMixin):
         nullable=False,
     )
 
+    # Commenter profile fields
+    commenter_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    commenter_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    commenter_biography: Mapped[str | None] = mapped_column(Text, nullable=True)
+    commenter_followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    commenter_media_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    commenter_profile_picture_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # Relationships
     automation: Mapped["Automation"] = relationship(
         "Automation",
         back_populates="dm_sent_logs",
+    )
+
+
+class CommentReplyLog(Base, UUIDMixin):
+    """Log of comment replies sent."""
+
+    __tablename__ = "comment_reply_log"
+
+    automation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("automations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    post_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    comment_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    commenter_user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # sent | failed
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # Commenter profile fields
+    commenter_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    commenter_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    commenter_biography: Mapped[str | None] = mapped_column(Text, nullable=True)
+    commenter_followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    commenter_media_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    commenter_profile_picture_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Relationships
+    automation: Mapped["Automation"] = relationship(
+        "Automation",
+        back_populates="comment_reply_logs",
     )

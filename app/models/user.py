@@ -9,6 +9,7 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from app.models.instagram_account import InstagramAccount
+    from app.models.bio_page import BioPage
 
 
 class User(Base, UUIDMixin, TimestampMixin):
@@ -25,4 +26,9 @@ class User(Base, UUIDMixin, TimestampMixin):
         "InstagramAccount",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+    bio_page: Mapped["BioPage | None"] = relationship(
+        "BioPage",
+        back_populates="user",
+        uselist=False,
     )
