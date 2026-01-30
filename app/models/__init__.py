@@ -1,7 +1,7 @@
 from app.models.base import Base
 from app.models.user import User
 from app.models.instagram_account import InstagramAccount
-from app.models.automation import Automation, TriggerType, DMSentLog, CommentReplyLog
+from app.models.automation import Automation, TriggerType, MessageType, DMSentLog, CommentReplyLog
 from app.models.bio_page import BioPage, RESERVED_SLUGS
 from app.models.bio_link import BioLink, LinkType
 from app.models.bio_card import BioCard
@@ -18,6 +18,7 @@ __all__ = [
     "InstagramAccount",
     "Automation",
     "TriggerType",
+    "MessageType",
     "DMSentLog",
     "CommentReplyLog",
     # Link-in-Bio models

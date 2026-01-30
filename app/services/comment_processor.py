@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.models import Automation, DMSentLog, InstagramAccount, CommentReplyLog
-from app.models.automation import TriggerType
+from app.models.automation import MessageType, TriggerType
 from app.services.instagram_client import instagram_client
 
 logger = logging.getLogger(__name__)
@@ -242,19 +242,26 @@ class CommentProcessor:
         automation: Automation,
         account: InstagramAccount,
     ) -> bool:
-        """Send a DM to the commenter."""
+        """Send a DM to the commenter (text or carousel based on message_type)."""
         try:
-            # Decrypt the access token
             access_token = instagram_client.decrypt_token(account.access_token)
 
-            # Send the message
-            response = await instagram_client.send_message(
-                access_token=access_token,
-                sender_id=account.instagram_user_id,
-                recipient_id=event.comment_id,
-                text=automation.dm_message_template,
-                reply_to="COMMENT"
-            )
+            if automation.message_type == MessageType.CAROUSEL and automation.carousel_elements:
+                response = await instagram_client.send_carousel(
+                    access_token=access_token,
+                    sender_id=account.instagram_user_id,
+                    recipient_id=event.comment_id,
+                    elements=automation.carousel_elements,
+                    reply_to="COMMENT",
+                )
+            else:
+                response = await instagram_client.send_message(
+                    access_token=access_token,
+                    sender_id=account.instagram_user_id,
+                    recipient_id=event.comment_id,
+                    text=automation.dm_message_template,
+                    reply_to="COMMENT",
+                )
 
             logger.info(
                 f"DM sent successfully to @{event.commenter_username}: {response}"

@@ -216,6 +216,53 @@ class InstagramClient:
             response.raise_for_status()
             return response.json()
 
+    async def send_carousel(
+        self,
+        access_token: str,
+        sender_id: str,
+        recipient_id: str,
+        elements: list[dict[str, Any]],
+        reply_to: str,
+    ) -> dict[str, Any]:
+        """Send a carousel (generic template) DM.
+
+        Args:
+            access_token: The Instagram account's access token
+            sender_id: The Instagram account ID sending the message
+            recipient_id: The comment ID or user ID
+            elements: List of carousel card dicts with title, subtitle, image_url, buttons
+            reply_to: "COMMENT" to use comment_id, otherwise user id
+
+        Returns:
+            API response with message_id on success
+        """
+        if reply_to.lower() == "comment":
+            recipient_key = "comment_id"
+        else:
+            recipient_key = "id"
+
+        payload = {
+            "recipient": {recipient_key: recipient_id},
+            "message": {
+                "attachment": {
+                    "type": "template",
+                    "payload": {
+                        "template_type": "generic",
+                        "elements": elements,
+                    },
+                }
+            },
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/{sender_id}/messages",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json=payload,
+            )
+            response.raise_for_status()
+            return response.json()
+
     async def reply_to_comment(
         self, access_token: str, comment_id: str, message: str
     ) -> dict:

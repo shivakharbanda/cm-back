@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
@@ -17,6 +17,13 @@ class TriggerType(str, enum.Enum):
 
     ALL_COMMENTS = "all_comments"
     KEYWORD = "keyword"
+
+
+class MessageType(str, enum.Enum):
+    """DM message types."""
+
+    TEXT = "text"
+    CAROUSEL = "carousel"
 
 
 class Automation(Base, UUIDMixin, TimestampMixin):
@@ -37,7 +44,14 @@ class Automation(Base, UUIDMixin, TimestampMixin):
         nullable=False,
     )
     keywords: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
-    dm_message_template: Mapped[str] = mapped_column(Text, nullable=False)
+    message_type: Mapped[MessageType] = mapped_column(
+        Enum(MessageType, name="message_type_enum", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=MessageType.TEXT,
+        server_default="text",
+    )
+    dm_message_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+    carousel_elements: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     comment_reply_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
