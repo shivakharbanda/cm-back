@@ -3,9 +3,26 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.models.automation import TriggerType
+from app.models.automation import MessageType, TriggerType
+
+
+class CarouselButton(BaseModel):
+    """A button on a carousel card."""
+
+    type: str = "web_url"
+    url: str
+    title: str = Field(..., min_length=1, max_length=80)
+
+
+class CarouselElement(BaseModel):
+    """A single card in a carousel."""
+
+    title: str = Field(..., min_length=1, max_length=80)
+    subtitle: str | None = Field(None, max_length=80)
+    image_url: str | None = None
+    buttons: list[CarouselButton] = Field(..., min_length=1, max_length=3)
 
 
 class AutomationCreate(BaseModel):
@@ -16,9 +33,23 @@ class AutomationCreate(BaseModel):
     post_id: str = Field(..., min_length=1, max_length=100)
     trigger_type: TriggerType
     keywords: list[str] | None = None
-    dm_message_template: str = Field(..., min_length=1)
+    message_type: MessageType = MessageType.TEXT
+    dm_message_template: str | None = None
+    carousel_elements: list[CarouselElement] | None = None
     comment_reply_enabled: bool = False
     comment_reply_template: str | None = None
+
+    @model_validator(mode="after")
+    def validate_message_content(self):
+        if self.message_type == MessageType.TEXT:
+            if not self.dm_message_template or not self.dm_message_template.strip():
+                raise ValueError("dm_message_template is required for text messages")
+        elif self.message_type == MessageType.CAROUSEL:
+            if not self.carousel_elements or len(self.carousel_elements) == 0:
+                raise ValueError("carousel_elements is required for carousel messages")
+            if len(self.carousel_elements) > 10:
+                raise ValueError("carousel_elements cannot exceed 10 items")
+        return self
 
 
 class AutomationUpdate(BaseModel):
@@ -27,7 +58,9 @@ class AutomationUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     trigger_type: TriggerType | None = None
     keywords: list[str] | None = None
-    dm_message_template: str | None = Field(None, min_length=1)
+    message_type: MessageType | None = None
+    dm_message_template: str | None = None
+    carousel_elements: list[CarouselElement] | None = None
     comment_reply_enabled: bool | None = None
     comment_reply_template: str | None = None
 
@@ -41,7 +74,9 @@ class AutomationResponse(BaseModel):
     post_id: str
     trigger_type: TriggerType
     keywords: list[str] | None
-    dm_message_template: str
+    message_type: MessageType
+    dm_message_template: str | None
+    carousel_elements: list[CarouselElement] | None
     comment_reply_enabled: bool
     comment_reply_template: str | None
     is_active: bool
