@@ -179,6 +179,24 @@ class CommentProcessor:
             )
             return
 
+        # Validate that we have content to send
+        if (
+            automation.message_type == MessageType.TEXT
+            and not automation.dm_message_template
+        ):
+            logger.warning(
+                f"Automation {automation.id} is text-based but has no message template."
+            )
+            return
+        if (
+            automation.message_type == MessageType.CAROUSEL
+            and not automation.carousel_elements
+        ):
+            logger.warning(
+                f"Automation {automation.id} is carousel-based but has no elements."
+            )
+            return
+
         # Fetch commenter profile from Instagram API
         commenter_profile = await self._fetch_commenter_profile(event, account)
 

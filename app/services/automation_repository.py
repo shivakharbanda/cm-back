@@ -50,7 +50,9 @@ class AutomationRepository:
             post_id=data.post_id,
             trigger_type=data.trigger_type,
             keywords=data.keywords,
+            message_type=data.message_type,
             dm_message_template=data.dm_message_template,
+            carousel_elements=[e.model_dump() for e in data.carousel_elements] if data.carousel_elements else None,
             comment_reply_enabled=data.comment_reply_enabled,
             comment_reply_template=data.comment_reply_template,
         )
@@ -117,6 +119,18 @@ class AutomationRepository:
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(automation, field, value)
+
+        # Validate the resulting state before committing
+        if (
+            automation.message_type == "text"
+            and not automation.dm_message_template
+        ):
+            raise ValueError("dm_message_template is required for text messages")
+        if (
+            automation.message_type == "carousel"
+            and not automation.carousel_elements
+        ):
+            raise ValueError("carousel_elements are required for carousel messages")
 
         await self.db.flush()
         await self.db.refresh(automation)
