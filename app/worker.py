@@ -37,13 +37,13 @@ class Worker:
         """Process a single comment event.
 
         This is called for each message consumed from RabbitMQ.
+        CommentProcessor owns commit/rollback — it commits mid-flow so the
+        'pending' DMSentLog row lands before the Graph API side effect.
         """
         async with async_session_maker() as session:
             try:
                 processor = CommentProcessor(session)
-                result = await processor.process(payload)
-                await session.commit()
-                return result
+                return await processor.process(payload)
             except Exception as e:
                 logger.error(f"Error processing comment: {e}", exc_info=True)
                 await session.rollback()
