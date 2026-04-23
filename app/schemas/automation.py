@@ -25,6 +25,30 @@ class CarouselElement(BaseModel):
     buttons: list[CarouselButton] = Field(..., min_length=1, max_length=3)
 
 
+class ButtonTemplateButton(BaseModel):
+    """A button on an Instagram button-template DM."""
+
+    type: str = Field(..., pattern="^(web_url|postback)$")
+    title: str = Field(..., min_length=1, max_length=20)
+    url: str | None = None
+    payload: str | None = None
+
+    @model_validator(mode="after")
+    def _check_variant(self):
+        if self.type == "web_url" and not self.url:
+            raise ValueError("web_url button requires url")
+        if self.type == "postback" and not self.payload:
+            raise ValueError("postback button requires payload")
+        return self
+
+
+class ButtonTemplate(BaseModel):
+    """Body text + 1-3 buttons for a button-template DM."""
+
+    text: str = Field(..., min_length=1, max_length=640)
+    buttons: list[ButtonTemplateButton] = Field(..., min_length=1, max_length=3)
+
+
 class AutomationCreate(BaseModel):
     """Schema for creating an automation."""
 
@@ -36,6 +60,7 @@ class AutomationCreate(BaseModel):
     message_type: MessageType = MessageType.TEXT
     dm_message_template: str | None = None
     carousel_elements: list[CarouselElement] | None = None
+    button_template: ButtonTemplate | None = None
     comment_reply_enabled: bool = False
     comment_reply_template: str | None = None
 
@@ -49,6 +74,9 @@ class AutomationCreate(BaseModel):
                 raise ValueError("carousel_elements is required for carousel messages")
             if len(self.carousel_elements) > 10:
                 raise ValueError("carousel_elements cannot exceed 10 items")
+        elif self.message_type == MessageType.BUTTON:
+            if not self.button_template:
+                raise ValueError("button_template is required for button messages")
         return self
 
 
@@ -61,6 +89,7 @@ class AutomationUpdate(BaseModel):
     message_type: MessageType | None = None
     dm_message_template: str | None = None
     carousel_elements: list[CarouselElement] | None = None
+    button_template: ButtonTemplate | None = None
     comment_reply_enabled: bool | None = None
     comment_reply_template: str | None = None
 
@@ -77,6 +106,7 @@ class AutomationResponse(BaseModel):
     message_type: MessageType
     dm_message_template: str | None
     carousel_elements: list[CarouselElement] | None
+    button_template: ButtonTemplate | None
     comment_reply_enabled: bool
     comment_reply_template: str | None
     is_active: bool

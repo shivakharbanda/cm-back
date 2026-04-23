@@ -332,6 +332,42 @@ class InstagramClient:
             except httpx.HTTPStatusError as e:
                 raise _classify_http_error(e) from e
 
+    async def send_button_template(
+        self,
+        access_token: str,
+        recipient_id: str,
+        text: str,
+        buttons: list[dict[str, Any]],
+        reply_to: str,
+    ) -> dict[str, Any]:
+        """Send a button-template DM via /me/messages."""
+        recipient_key = "comment_id" if reply_to.lower() == "comment" else "id"
+        payload = {
+            "recipient": {recipient_key: recipient_id},
+            "message": {
+                "attachment": {
+                    "type": "template",
+                    "payload": {
+                        "template_type": "button",
+                        "text": text,
+                        "buttons": buttons,
+                    },
+                }
+            },
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    f"{self.base_url}/me/messages",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json=payload,
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                raise _classify_http_error(e) from e
+
     async def reply_to_comment(
         self, access_token: str, comment_id: str, message: str
     ) -> dict:

@@ -44,6 +44,7 @@ class MessageType(str, enum.Enum):
 
     TEXT = "text"
     CAROUSEL = "carousel"
+    BUTTON = "button"
 
 
 class Automation(Base, UUIDMixin, TimestampMixin):
@@ -72,6 +73,7 @@ class Automation(Base, UUIDMixin, TimestampMixin):
     )
     dm_message_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     carousel_elements: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    button_template: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     comment_reply_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
