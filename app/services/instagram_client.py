@@ -12,6 +12,85 @@ from app.config import settings
 MEDIA_FIELDS = "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username"
 
 
+class GraphAPIError(Exception):
+    """Base class for classified Graph API errors.
+
+    Carries the HTTP status code and Meta's error envelope so callers can
+    decide whether to retry, mark permanent, or surface to the user.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        meta_code: int | None = None,
+        meta_subcode: int | None = None,
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.meta_code = meta_code
+        self.meta_subcode = meta_subcode
+
+
+class RetryableGraphAPIError(GraphAPIError):
+    """Transient — worker should nack+requeue (up to the delivery cap)."""
+
+
+class PermanentGraphAPIError(GraphAPIError):
+    """Won't succeed on retry — worker should log and ack.
+
+    Examples: expired/invalid token (190), bad recipient (400 with certain
+    subcodes), post deleted, user blocked the business (403).
+    """
+
+
+def _classify_http_error(err: httpx.HTTPStatusError) -> GraphAPIError:
+    """Map an httpx error into a retryable or permanent GraphAPIError.
+
+    Meta's error envelope looks like:
+      {"error": {"message": "...", "code": 190, "error_subcode": 460, ...}}
+    """
+    status = err.response.status_code
+    meta_code: int | None = None
+    meta_subcode: int | None = None
+    message = f"HTTP {status}"
+    try:
+        body = err.response.json()
+        error_obj = body.get("error") if isinstance(body, dict) else None
+        if isinstance(error_obj, dict):
+            meta_code = error_obj.get("code")
+            meta_subcode = error_obj.get("error_subcode")
+            message = error_obj.get("message") or message
+    except Exception:
+        pass
+
+    if status == 429 or 500 <= status < 600:
+        return RetryableGraphAPIError(
+            message,
+            status_code=status,
+            meta_code=meta_code,
+            meta_subcode=meta_subcode,
+        )
+
+    # 4xx other than 429: auth/bad-request/forbidden/not-found → permanent.
+    if 400 <= status < 500:
+        return PermanentGraphAPIError(
+            message,
+            status_code=status,
+            meta_code=meta_code,
+            meta_subcode=meta_subcode,
+        )
+
+    # 3xx/1xx and anything unexpected: be conservative, treat as retryable.
+    return RetryableGraphAPIError(
+        message,
+        status_code=status,
+        meta_code=meta_code,
+        meta_subcode=meta_subcode,
+    )
+
+
 class InstagramClient:
     """Client for Instagram OAuth and Graph API."""
 
@@ -198,7 +277,7 @@ class InstagramClient:
             API response with message_id on success
         """
 
-        if reply_to.lower()=="COMMENT".lower():
+        if reply_to.lower() == "comment":
             recipient_id_name = "comment_id"
         else:
             recipient_id_name = "id"
@@ -208,13 +287,16 @@ class InstagramClient:
         }
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/{sender_id}/messages",
-                headers={"Authorization": f"Bearer {access_token}"},
-                json=payload,
-            )
-            response.raise_for_status()
-            return response.json()
+            try:
+                response = await client.post(
+                    f"{self.base_url}/{sender_id}/messages",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json=payload,
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                raise _classify_http_error(e) from e
 
     async def send_carousel(
         self,
@@ -255,13 +337,16 @@ class InstagramClient:
         }
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/{sender_id}/messages",
-                headers={"Authorization": f"Bearer {access_token}"},
-                json=payload,
-            )
-            response.raise_for_status()
-            return response.json()
+            try:
+                response = await client.post(
+                    f"{self.base_url}/{sender_id}/messages",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json=payload,
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                raise _classify_http_error(e) from e
 
     async def reply_to_comment(
         self, access_token: str, comment_id: str, message: str
@@ -276,8 +361,8 @@ class InstagramClient:
         - Cannot reply to hidden comments
         - Cannot reply to comments on live videos
         """
-        try:
-            async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient() as client:
+            try:
                 response = await client.post(
                     f"{self.base_url}/{comment_id}/replies",
                     headers={"Authorization": f"Bearer {access_token}"},
@@ -285,15 +370,8 @@ class InstagramClient:
                 )
                 response.raise_for_status()
                 return response.json()
-        except httpx.HTTPStatusError as e:
-            try:
-                error_data = e.response.json()
-                error_msg = error_data.get("error", {}).get(
-                    "message", "Failed to reply to comment"
-                )
-            except Exception:
-                error_msg = "Failed to reply to comment"
-            raise ValueError(error_msg)
+            except httpx.HTTPStatusError as e:
+                raise _classify_http_error(e) from e
 
     async def get_comment_replies(
         self, access_token: str, comment_id: str

@@ -4,9 +4,29 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+
+# DMSentLog.status values. Rows with these statuses short-circuit re-sending
+# in CommentProcessor._already_sent.
+DM_STATUS_PENDING = "pending"
+DM_STATUS_SENT = "sent"
+DM_STATUS_FAILED = "failed"  # transient / unclassified; may be retried
+DM_STATUS_PERMANENT_FAILURE = "permanent_failure"  # Meta said no; never retry
+DM_DEDUP_STATUSES = (DM_STATUS_PENDING, DM_STATUS_SENT, DM_STATUS_PERMANENT_FAILURE)
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
 from app.models.instagram_account import InstagramAccount
@@ -81,6 +101,20 @@ class DMSentLog(Base, UUIDMixin):
     """Log of sent DMs for deduplication."""
 
     __tablename__ = "dm_sent_log"
+    __table_args__ = (
+        UniqueConstraint(
+            "automation_id",
+            "commenter_user_id",
+            "post_id",
+            name="uq_dm_sent_log_dedup",
+        ),
+        Index(
+            "ix_dm_sent_log_dedup_lookup",
+            "automation_id",
+            "post_id",
+            "commenter_user_id",
+        ),
+    )
 
     automation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -104,7 +138,7 @@ class DMSentLog(Base, UUIDMixin):
     commenter_biography: Mapped[str | None] = mapped_column(Text, nullable=True)
     commenter_followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     commenter_media_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    commenter_profile_picture_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    commenter_profile_picture_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     automation: Mapped["Automation"] = relationship(
@@ -140,7 +174,7 @@ class CommentReplyLog(Base, UUIDMixin):
     commenter_biography: Mapped[str | None] = mapped_column(Text, nullable=True)
     commenter_followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     commenter_media_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    commenter_profile_picture_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    commenter_profile_picture_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     automation: Mapped["Automation"] = relationship(
