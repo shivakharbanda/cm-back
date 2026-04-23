@@ -128,6 +128,11 @@ class DMSentLog(Base, UUIDMixin):
     commenter_user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     comment_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Populated when the Graph API classified the attempt as failed /
+    # permanent_failure. NULL on 'sent' and 'pending' rows.
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_subcode: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

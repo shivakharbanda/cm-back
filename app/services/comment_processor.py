@@ -37,6 +37,22 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class DMSendResult:
+    """Outcome of a single Graph-API DM attempt.
+
+    `retryable=True` means the worker should nack+requeue after the status
+    row has been finalized to 'failed' (so the next delivery's dedup claim
+    can re-acquire this slot).
+    """
+
+    status: str
+    error_message: str | None = None
+    error_code: int | None = None
+    error_subcode: int | None = None
+    retryable: bool = False
+
+
+@dataclass
 class CommenterProfile:
     """Profile data fetched from Instagram API."""
 
@@ -281,16 +297,19 @@ class CommentProcessor:
         # Row is committed as 'pending'. The Graph API call is now the only
         # side effect that can still fail, and we've guaranteed at-most-once
         # against concurrent workers.
-        try:
-            final_status = await self._send_dm(event, automation, account)
-        except RetryableGraphAPIError:
-            # Revert to 'failed' so the next delivery's ON CONFLICT can
+        result = await self._send_dm(event, automation, account)
+        await self._finalize_dm_status(
+            log_id,
+            result.status,
+            error_message=result.error_message,
+            error_code=result.error_code,
+            error_subcode=result.error_subcode,
+        )
+        if result.retryable:
+            # The row is now 'failed', so the next delivery's ON CONFLICT can
             # re-claim this slot (the claim WHERE filters on status='failed').
-            # Then re-raise so the worker nacks the message for retry.
-            await self._finalize_dm_status(log_id, DM_STATUS_FAILED)
-            raise
-
-        await self._finalize_dm_status(log_id, final_status)
+            # Raise so the worker nacks the message for retry.
+            raise RetryableGraphAPIError(result.error_message or "retry")
 
         # Comment-reply is independent of DM success. A commenter may have
         # restricted DMs from businesses (very common), but the public reply
@@ -391,10 +410,27 @@ class CommentProcessor:
         await self.db.commit()
         return log_id
 
-    async def _finalize_dm_status(self, log_id: UUID, status: str) -> None:
-        """Update the DMSentLog row to its terminal status after the send attempt."""
+    async def _finalize_dm_status(
+        self,
+        log_id: UUID,
+        status: str,
+        error_message: str | None = None,
+        error_code: int | None = None,
+        error_subcode: int | None = None,
+    ) -> None:
+        """Update the DMSentLog row to its terminal status + error context.
+
+        Always writes all four fields. On 'sent' the three error columns
+        clear back to NULL, wiping any stale retry error from an earlier
+        attempt on the same row.
+        """
         await self.db.execute(
-            update(DMSentLog).where(DMSentLog.id == log_id).values(status=status)
+            update(DMSentLog).where(DMSentLog.id == log_id).values(
+                status=status,
+                error_message=error_message,
+                error_code=error_code,
+                error_subcode=error_subcode,
+            )
         )
         await self.db.commit()
 
@@ -439,11 +475,12 @@ class CommentProcessor:
         event: CommentEvent,
         automation: Automation,
         account: InstagramAccount,
-    ) -> str:
-        """Send a DM to the commenter.
+    ) -> DMSendResult:
+        """Attempt to send a DM and return the classified outcome.
 
-        Returns one of DM_STATUS_SENT / DM_STATUS_PERMANENT_FAILURE / DM_STATUS_FAILED.
-        Raises RetryableGraphAPIError so the worker can nack+requeue.
+        Never raises — the Meta error detail is packaged into DMSendResult
+        so the caller can persist it to dm_sent_log before deciding whether
+        to nack the message (retryable=True) or ack it.
         """
         try:
             access_token = instagram_client.decrypt_token(account.access_token)
@@ -481,7 +518,7 @@ class CommentProcessor:
             logger.info(
                 f"DM sent to @{event.commenter_username} message_id={message_id}"
             )
-            return DM_STATUS_SENT
+            return DMSendResult(status=DM_STATUS_SENT)
 
         except PermanentGraphAPIError as e:
             logger.warning(
@@ -489,18 +526,33 @@ class CommentProcessor:
                 f"status={e.status_code} meta_code={e.meta_code} "
                 f"meta_subcode={e.meta_subcode} msg={e}"
             )
-            return DM_STATUS_PERMANENT_FAILURE
+            return DMSendResult(
+                status=DM_STATUS_PERMANENT_FAILURE,
+                error_message=str(e),
+                error_code=e.meta_code,
+                error_subcode=e.meta_subcode,
+            )
 
-        except RetryableGraphAPIError:
-            # Let caller observe the type so it can rewind the 'pending' row.
-            raise
+        except RetryableGraphAPIError as e:
+            logger.warning(
+                f"Retryable DM failure for @{event.commenter_username}: "
+                f"status={e.status_code} meta_code={e.meta_code} "
+                f"meta_subcode={e.meta_subcode} msg={e}"
+            )
+            return DMSendResult(
+                status=DM_STATUS_FAILED,
+                error_message=str(e),
+                error_code=e.meta_code,
+                error_subcode=e.meta_subcode,
+                retryable=True,
+            )
 
         except Exception as e:
             logger.error(
                 f"Unclassified DM failure for @{event.commenter_username}: {e}",
                 exc_info=True,
             )
-            return DM_STATUS_FAILED
+            return DMSendResult(status=DM_STATUS_FAILED, error_message=str(e))
 
     async def _reply_to_comment(
         self,

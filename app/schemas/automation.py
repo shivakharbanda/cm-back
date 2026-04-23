@@ -171,6 +171,9 @@ class CommenterInfo(BaseModel):
     profile_picture_url: str | None
     dm_sent_at: datetime
     status: str
+    error_message: str | None = None
+    error_code: int | None = None
+    error_subcode: int | None = None
 
 
 class AutomationCommentersResponse(BaseModel):
