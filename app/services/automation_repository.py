@@ -53,6 +53,7 @@ class AutomationRepository:
             message_type=data.message_type,
             dm_message_template=data.dm_message_template,
             carousel_elements=[e.model_dump() for e in data.carousel_elements] if data.carousel_elements else None,
+            button_template=data.button_template.model_dump() if data.button_template else None,
             comment_reply_enabled=data.comment_reply_enabled,
             comment_reply_template=data.comment_reply_template,
         )
@@ -131,6 +132,11 @@ class AutomationRepository:
             and not automation.carousel_elements
         ):
             raise ValueError("carousel_elements are required for carousel messages")
+        if (
+            automation.message_type == "button"
+            and not automation.button_template
+        ):
+            raise ValueError("button_template is required for button messages")
 
         await self.db.flush()
         await self.db.refresh(automation)

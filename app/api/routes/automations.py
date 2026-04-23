@@ -218,6 +218,9 @@ async def get_automation_commenters(
                 profile_picture_url=log.commenter_profile_picture_url,
                 dm_sent_at=log.sent_at,
                 status=log.status,
+                error_message=log.error_message,
+                error_code=log.error_code,
+                error_subcode=log.error_subcode,
             )
             for log in logs
         ],
