@@ -1,6 +1,6 @@
 """Add DM dedup unique constraint and widen commenter_profile_picture_url.
 
-Revision ID: 009_add_dm_dedup_and_widen_pfp_url
+Revision ID: 009_add_dm_dedup
 Revises: 008_add_carousel_support
 Create Date: 2026-04-23 00:00:00.000000
 
@@ -22,7 +22,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "009_add_dm_dedup_and_widen_pfp_url"
+revision: str = "009_add_dm_dedup"
 down_revision: Union[str, None] = "008_add_carousel_support"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
