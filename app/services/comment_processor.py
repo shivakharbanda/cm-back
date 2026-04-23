@@ -446,7 +446,6 @@ class CommentProcessor:
             ):
                 response = await instagram_client.send_carousel(
                     access_token=access_token,
-                    sender_id=account.instagram_user_id,
                     recipient_id=event.comment_id,
                     elements=automation.carousel_elements,
                     reply_to="COMMENT",
@@ -454,7 +453,6 @@ class CommentProcessor:
             else:
                 response = await instagram_client.send_message(
                     access_token=access_token,
-                    sender_id=account.instagram_user_id,
                     recipient_id=event.comment_id,
                     text=automation.dm_message_template,
                     reply_to="COMMENT",

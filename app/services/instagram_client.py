@@ -187,24 +187,30 @@ class InstagramClient:
             expires_in = long_lived_data.get("expires_in", 5184000)  # Default 60 days
             expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
+            # Fetch the professional account ID (IG_ID) + username via /me.
+            # /oauth/access_token returns only the app-scoped id; Meta's
+            # webhook payloads use the IG_ID, so we need both.
+            long_lived_token = long_lived_data["access_token"]
+            try:
+                me_response = await client.get(
+                    f"{self.base_url}/me",
+                    params={
+                        "fields": "user_id,username",
+                        "access_token": long_lived_token,
+                    },
+                )
+                me_response.raise_for_status()
+                me_data = me_response.json()
+            except httpx.HTTPStatusError:
+                raise ValueError("Failed to fetch Instagram account profile") from None
+
             return {
-                "access_token": long_lived_data["access_token"],
-                "user_id": str(short_lived_data["user_id"]),
+                "access_token": long_lived_token,
+                "ig_id": str(me_data["user_id"]),
+                "app_scoped_id": str(short_lived_data["user_id"]),
+                "username": me_data.get("username", ""),
                 "expires_at": expires_at,
             }
-
-    async def get_user_profile(self, access_token: str, user_id: str) -> dict[str, Any]:
-        """Get Instagram user profile."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/{user_id}",
-                params={
-                    "fields": "id,username",
-                    "access_token": access_token,
-                },
-            )
-            response.raise_for_status()
-            return response.json()
 
     async def get_commenter_profile(self, access_token: str, user_id: str) -> dict[str, Any]:
         """Fetch full profile details for a commenter.
@@ -223,9 +229,9 @@ class InstagramClient:
             return response.json()
 
     async def get_user_media(
-        self, access_token: str, user_id: str, after_cursor: str | None = None
+        self, access_token: str, after_cursor: str | None = None
     ) -> dict[str, Any]:
-        """Fetch user's media posts."""
+        """Fetch authenticated account's media posts via the /me shortcut."""
         params: dict[str, str] = {
             "fields": MEDIA_FIELDS,
             "access_token": access_token,
@@ -235,7 +241,7 @@ class InstagramClient:
 
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{self.base_url}/{user_id}/media",
+                f"{self.base_url}/me/media",
                 params=params,
             )
             response.raise_for_status()
@@ -263,19 +269,9 @@ class InstagramClient:
             }
 
     async def send_message(
-        self, access_token: str, sender_id: str, recipient_id: str, text: str, reply_to:str
+        self, access_token: str, recipient_id: str, text: str, reply_to: str
     ) -> dict[str, Any]:
-        """Send a DM to a user.
-
-        Args:
-            access_token: The Instagram account's access token
-            sender_id: The Instagram account ID sending the message
-            recipient_id: The recipient's Instagram-scoped user ID
-            text: The message text to send
-
-        Returns:
-            API response with message_id on success
-        """
+        """Send a DM to a user via the /me/messages shortcut."""
 
         if reply_to.lower() == "comment":
             recipient_id_name = "comment_id"
@@ -289,7 +285,7 @@ class InstagramClient:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{self.base_url}/{sender_id}/messages",
+                    f"{self.base_url}/me/messages",
                     headers={"Authorization": f"Bearer {access_token}"},
                     json=payload,
                 )
@@ -301,23 +297,11 @@ class InstagramClient:
     async def send_carousel(
         self,
         access_token: str,
-        sender_id: str,
         recipient_id: str,
         elements: list[dict[str, Any]],
         reply_to: str,
     ) -> dict[str, Any]:
-        """Send a carousel (generic template) DM.
-
-        Args:
-            access_token: The Instagram account's access token
-            sender_id: The Instagram account ID sending the message
-            recipient_id: The comment ID or user ID
-            elements: List of carousel card dicts with title, subtitle, image_url, buttons
-            reply_to: "COMMENT" to use comment_id, otherwise user id
-
-        Returns:
-            API response with message_id on success
-        """
+        """Send a carousel (generic template) DM via the /me/messages shortcut."""
         if reply_to.lower() == "comment":
             recipient_key = "comment_id"
         else:
@@ -339,7 +323,7 @@ class InstagramClient:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{self.base_url}/{sender_id}/messages",
+                    f"{self.base_url}/me/messages",
                     headers={"Authorization": f"Bearer {access_token}"},
                     json=payload,
                 )
