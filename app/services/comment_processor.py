@@ -250,6 +250,14 @@ class CommentProcessor:
                 f"Automation {automation.id} is carousel-based but has no elements."
             )
             return
+        if (
+            automation.message_type == MessageType.BUTTON
+            and not automation.button_template
+        ):
+            logger.warning(
+                f"Automation {automation.id} is button-based but has no template."
+            )
+            return
 
         # Refresh token if it's near expiry. A single refresh per automation is
         # fine: this hot path is already rate-limited by IG webhook volume.
@@ -448,6 +456,17 @@ class CommentProcessor:
                     access_token=access_token,
                     recipient_id=event.comment_id,
                     elements=automation.carousel_elements,
+                    reply_to="COMMENT",
+                )
+            elif (
+                automation.message_type == MessageType.BUTTON
+                and automation.button_template
+            ):
+                response = await instagram_client.send_button_template(
+                    access_token=access_token,
+                    recipient_id=event.comment_id,
+                    text=automation.button_template["text"],
+                    buttons=automation.button_template["buttons"],
                     reply_to="COMMENT",
                 )
             else:

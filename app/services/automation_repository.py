@@ -200,11 +200,21 @@ class AutomationRepository:
         if end_date:
             reply_filters.append(func.date(CommentReplyLog.sent_at) <= end_date)
 
-        # Get DM stats
+        # Get DM stats. Count both 'failed' (transient) and 'permanent_failure'
+        # (Meta rejected outright) in the failed bucket — both are terminal
+        # non-success outcomes from the user's perspective. 'pending' stays
+        # uncounted on both sides.
         dm_result = await self.db.execute(
             select(
                 func.count(case((DMSentLog.status == "sent", 1))).label("sent"),
-                func.count(case((DMSentLog.status == "failed", 1))).label("failed"),
+                func.count(
+                    case(
+                        (
+                            DMSentLog.status.in_(("failed", "permanent_failure")),
+                            1,
+                        )
+                    )
+                ).label("failed"),
                 func.count(distinct(DMSentLog.commenter_user_id)).label("unique_users"),
             ).where(*dm_filters)
         )
