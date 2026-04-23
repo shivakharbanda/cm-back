@@ -27,7 +27,14 @@ class InstagramAccount(Base, UUIDMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
+    # Instagram professional account ID (IG_ID). Matches `entry.id` on
+    # Instagram webhook payloads — this is the id used for webhook matching.
     instagram_user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    # App-scoped user ID returned by /oauth/access_token and `/me?fields=id`.
+    # Required by story-insights, mentions, and notifications endpoints.
+    instagram_app_scoped_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )
     username: Mapped[str] = mapped_column(String(100), nullable=False)
     access_token: Mapped[str] = mapped_column(Text, nullable=False)
     token_expires_at: Mapped[datetime | None] = mapped_column(

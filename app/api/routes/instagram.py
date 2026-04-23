@@ -49,14 +49,9 @@ async def oauth_callback(
 ) -> InstagramAccount:
     """Handle Instagram OAuth callback and store tokens."""
     try:
-        # Exchange code for token
+        # Exchange code for token. Returns both the IG professional account ID
+        # (used for webhook matching) and the app-scoped ID, plus username.
         token_data = await instagram_client.exchange_code_for_token(request.code)
-
-        # Get user profile
-        profile = await instagram_client.get_user_profile(
-            token_data["access_token"],
-            token_data["user_id"],
-        )
 
         # Check if user already has an account linked
         result = await db.execute(
@@ -66,12 +61,13 @@ async def oauth_callback(
 
         if existing_account:
             # Update existing account (replace with new one)
-            existing_account.instagram_user_id = token_data["user_id"]
+            existing_account.instagram_user_id = token_data["ig_id"]
+            existing_account.instagram_app_scoped_id = token_data["app_scoped_id"]
             existing_account.access_token = instagram_client.encrypt_token(
                 token_data["access_token"]
             )
             existing_account.token_expires_at = token_data["expires_at"]
-            existing_account.username = profile.get("username", "")
+            existing_account.username = token_data["username"]
             await db.flush()
             await db.refresh(existing_account)
             return existing_account
@@ -79,8 +75,9 @@ async def oauth_callback(
         # Create new account
         account = InstagramAccount(
             user_id=current_user.id,
-            instagram_user_id=token_data["user_id"],
-            username=profile.get("username", ""),
+            instagram_user_id=token_data["ig_id"],
+            instagram_app_scoped_id=token_data["app_scoped_id"],
+            username=token_data["username"],
             access_token=instagram_client.encrypt_token(token_data["access_token"]),
             token_expires_at=token_data["expires_at"],
         )
@@ -129,11 +126,7 @@ async def list_posts(
 
     try:
         access_token = instagram_client.decrypt_token(account.access_token)
-        media_data = await instagram_client.get_user_media(
-            access_token,
-            account.instagram_user_id,
-            after,
-        )
+        media_data = await instagram_client.get_user_media(access_token, after)
 
         posts = [
             InstagramPostResponse(
