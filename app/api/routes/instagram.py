@@ -1,5 +1,7 @@
 """Instagram account management routes (single account per user)."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
@@ -12,7 +14,9 @@ from app.schemas.instagram import (
     InstagramPostResponse,
     InstagramPostsListResponse,
 )
-from app.services.instagram_client import instagram_client
+from app.services.instagram_client import GraphAPIError, instagram_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/instagram", tags=["instagram"])
 
@@ -70,6 +74,17 @@ async def oauth_callback(
             existing_account.username = token_data["username"]
             await db.flush()
             await db.refresh(existing_account)
+
+            await instagram_client.subscribe_app(
+                instagram_user_id=existing_account.instagram_user_id,
+                access_token=token_data["access_token"],
+                subscribed_fields=["comments"],
+            )
+            logger.info(
+                "instagram_webhook_subscribed ig_id=%s fields=%s",
+                existing_account.instagram_user_id,
+                ["comments"],
+            )
             return existing_account
 
         # Create new account
@@ -86,6 +101,17 @@ async def oauth_callback(
         await db.flush()
         await db.refresh(account)
 
+        await instagram_client.subscribe_app(
+            instagram_user_id=account.instagram_user_id,
+            access_token=token_data["access_token"],
+            subscribed_fields=["comments"],
+        )
+        logger.info(
+            "instagram_webhook_subscribed ig_id=%s fields=%s",
+            account.instagram_user_id,
+            ["comments"],
+        )
+
         return account
 
     except ValueError as e:
@@ -93,6 +119,11 @@ async def oauth_callback(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
+        )
+    except GraphAPIError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to enable Instagram webhook subscription: {e}",
         )
     except Exception:
         # Unknown error - don't expose details

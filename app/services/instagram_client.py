@@ -294,6 +294,30 @@ class InstagramClient:
             except httpx.HTTPStatusError as e:
                 raise _classify_http_error(e) from e
 
+    async def subscribe_app(
+        self,
+        instagram_user_id: str,
+        access_token: str,
+        subscribed_fields: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Enable webhook delivery for an IG pro account.
+
+        Without this call, Meta delivers no webhooks for the account even
+        after app-level URL verification. Idempotent — safe to re-invoke.
+        """
+        fields = subscribed_fields or ["comments"]
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    f"{self.base_url}/{instagram_user_id}/subscribed_apps",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params={"subscribed_fields": ",".join(fields)},
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                raise _classify_http_error(e) from e
+
     async def send_carousel(
         self,
         access_token: str,
