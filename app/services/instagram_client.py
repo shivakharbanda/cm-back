@@ -212,22 +212,6 @@ class InstagramClient:
                 "expires_at": expires_at,
             }
 
-    async def get_commenter_profile(self, access_token: str, user_id: str) -> dict[str, Any]:
-        """Fetch full profile details for a commenter.
-
-        Returns dict with: id, username, name, biography, followers_count, media_count, profile_picture_url
-        """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/{user_id}",
-                params={
-                    "fields": "id,username,name,biography,followers_count,media_count,profile_picture_url",
-                    "access_token": access_token,
-                },
-            )
-            response.raise_for_status()
-            return response.json()
-
     async def get_user_media(
         self, access_token: str, after_cursor: str | None = None
     ) -> dict[str, Any]:
