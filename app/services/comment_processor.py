@@ -322,24 +322,10 @@ class CommentProcessor:
     async def _fetch_commenter_profile(
         self, event: CommentEvent, account: InstagramAccount
     ) -> CommenterProfile:
-        """Fetch commenter's profile data from Instagram API."""
-        # Start with username from webhook
-        profile = CommenterProfile(username=event.commenter_username)
-
-        try:
-            access_token = instagram_client.decrypt_token(account.access_token)
-            data = await instagram_client.get_commenter_profile(
-                access_token, event.commenter_id
-            )
-            profile.name = data.get("name")
-            profile.biography = data.get("biography")
-            profile.followers_count = data.get("followers_count")
-            profile.media_count = data.get("media_count")
-            profile.profile_picture_url = data.get("profile_picture_url")
-        except Exception as e:
-            logger.warning(f"Failed to fetch profile for {event.commenter_username}: {e}")
-
-        return profile
+        # Rich fields (bio, followers, media_count, profile_picture) aren't readable
+        # via /<IG_USER_ID> for arbitrary commenters — Meta returns 500. Username
+        # from the webhook is all we reliably get.
+        return CommenterProfile(username=event.commenter_username)
 
     async def _log_dm_sent(
         self,
