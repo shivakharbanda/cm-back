@@ -66,6 +66,32 @@ class Settings(BaseSettings):
     # Analytics
     analytics_retention_days: int = 90
 
+    # Resend (transactional email)
+    resend_api_key: str = ""
+    resend_from_address: str = "onboarding@resend.dev"
+    resend_from_name: str = "CreatorModo"
+    resend_reply_to: str = ""
+
+    # Brand context — injected into every email template render
+    brand_product_name: str = "CreatorModo"
+    brand_company_address: str = "creatormodo.com"
+    brand_help_url: str = ""
+    brand_privacy_url: str = ""
+    brand_terms_url: str = ""
+    brand_unsubscribe_url: str = ""
+
+    # Token expiries / cooldowns
+    password_reset_token_expire_minutes: int = 30
+    email_verification_token_expire_hours: int = 24
+    password_reset_cooldown_seconds: int = 60
+    password_reset_max_active_tokens: int = 3
+
+    # Email dispatcher (worker)
+    email_dispatch_batch_size: int = 25
+    email_dispatch_interval_seconds: int = 5
+    email_max_retries: int = 5
+    email_dispatch_concurrency: int = 5
+
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""

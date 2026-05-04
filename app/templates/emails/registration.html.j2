@@ -1,0 +1,113 @@
+{% extends "emails/_base.html.j2" %}
+
+{% block title %}Welcome to {{ product_name }} — verify your email{% endblock %}
+
+{% block preheader %}Verify your email to start building Instagram automations and your link-in-bio.{% endblock %}
+
+{% block card %}
+<!-- Eyebrow -->
+<tr>
+  <td class="px" style="padding:40px 40px 0 40px;">
+    <span style="display:inline-block; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:#B8963A;">Welcome</span>
+  </td>
+</tr>
+
+<!-- Headline -->
+<tr>
+  <td class="px" style="padding:12px 40px 0 40px;">
+    <h1 style="margin:0; font-size:24px; line-height:1.15; font-weight:700; letter-spacing:-0.01em; color:#1A1B1E;">
+      Welcome to {{ product_name }}, {{ user_first_name }}.
+    </h1>
+  </td>
+</tr>
+
+<!-- Body -->
+<tr>
+  <td class="px" style="padding:16px 40px 0 40px;">
+    <p style="margin:0; font-size:14px; line-height:1.6; color:#1A1B1E;">
+      Your account is created. Verify your email address to unlock automations, your link‑in‑bio page, and analytics.
+    </p>
+  </td>
+</tr>
+
+<!-- CTA -->
+<tr>
+  <td class="px" style="padding:28px 40px 0 40px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="btn">
+      <tr>
+        <td align="center" style="background:#B8963A; border-radius:8px;">
+          <!--[if mso]>
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ verify_url }}" style="height:40px;v-text-anchor:middle;width:180px;" arcsize="20%" stroke="f" fillcolor="#B8963A">
+            <w:anchorlock/>
+            <center style="color:#FDFCFB;font-family:Arial,sans-serif;font-size:14px;font-weight:600;">Verify Email</center>
+          </v:roundrect>
+          <![endif]-->
+          <!--[if !mso]><!-- -->
+          <a href="{{ verify_url }}"
+             style="display:inline-block; padding:11px 22px; font-size:14px; font-weight:600; color:#FDFCFB; line-height:1.2; border-radius:8px;">
+            Verify Email
+          </a>
+          <!--<![endif]-->
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
+<!-- Fallback URL -->
+<tr>
+  <td class="px" style="padding:20px 40px 0 40px;">
+    <p style="margin:0; font-size:12px; line-height:1.5; color:#5C5A57;">
+      Or paste this link into your browser:
+    </p>
+    <p style="margin:6px 0 0 0; font-size:12px; line-height:1.5; word-break:break-all;">
+      <a href="{{ verify_url }}" style="color:#B8963A; text-decoration:underline;">{{ verify_url }}</a>
+    </p>
+  </td>
+</tr>
+
+<!-- Divider -->
+<tr>
+  <td class="px" style="padding:32px 40px 0 40px;">
+    <div style="height:1px; line-height:1px; background:#C9C7C4;">&nbsp;</div>
+  </td>
+</tr>
+
+<!-- What's next -->
+<tr>
+  <td class="px" style="padding:28px 40px 0 40px;">
+    <p style="margin:0 0 16px 0; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:#5C5A57;">
+      What's next
+    </p>
+
+    {% set next_steps = next_steps or [
+      {"title": "Connect your Instagram account", "body": "Required for DM automations and analytics."},
+      {"title": "Build your first automation",     "body": "Reply to comments and send DMs automatically."},
+      {"title": "Publish your link‑in‑bio",        "body": "Pick a theme, add links, and share your slug."}
+    ] %}
+
+    {% for step in next_steps %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td valign="top" class="num-cell" width="40" style="padding:0 12px 0 0;">
+          <div style="width:28px; height:28px; line-height:28px; text-align:center; background:#E8E6E3; border:1px solid #C9C7C4; border-radius:9999px; font-size:13px; font-weight:600; color:#1A1B1E;">{{ loop.index }}</div>
+        </td>
+        <td valign="top" style="padding:0 0 {% if loop.last %}0{% else %}16px{% endif %} 0;">
+          <p style="margin:0; font-size:14px; line-height:1.5; font-weight:600; color:#1A1B1E;">{{ step.title }}</p>
+          <p style="margin:4px 0 0 0; font-size:13px; line-height:1.5; color:#5C5A57;">{{ step.body }}</p>
+        </td>
+      </tr>
+    </table>
+    {% endfor %}
+  </td>
+</tr>
+
+<!-- Footer note -->
+<tr>
+  <td class="px" style="padding:32px 40px 40px 40px;">
+    <p style="margin:0; font-size:12px; line-height:1.6; color:#5C5A57;">
+      The verification link expires in {{ expires_in_hours }} hours. If you didn't create this account, you can ignore this email.
+    </p>
+  </td>
+</tr>
+{% endblock %}

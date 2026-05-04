@@ -1,5 +1,7 @@
 from app.models.base import Base
 from app.models.user import User
+from app.models.verification_token import VerificationToken, TokenPurpose
+from app.models.email_outbox import EmailOutbox, OutboxStatus
 from app.models.instagram_account import InstagramAccount
 from app.models.automation import Automation, TriggerType, MessageType, DMSentLog, CommentReplyLog
 from app.models.bio_page import BioPage, RESERVED_SLUGS
@@ -15,6 +17,10 @@ from app.models.social_link import SocialLink, SocialPlatform
 __all__ = [
     "Base",
     "User",
+    "VerificationToken",
+    "TokenPurpose",
+    "EmailOutbox",
+    "OutboxStatus",
     "InstagramAccount",
     "Automation",
     "TriggerType",

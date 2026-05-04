@@ -1,5 +1,6 @@
 """Authentication routes."""
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -8,12 +9,16 @@ from sqlalchemy import select
 from app.api.deps import CurrentUser, DBSession
 from app.config import settings
 from app.models import User
+from app.models.verification_token import TokenPurpose
 from app.schemas.auth import (
     UserCreate,
     UserLogin,
     UserResponse,
 )
 from app.services.auth import auth_service
+from app.services.email.outbox import enqueue
+from app.services.email.renderer import first_name_from_email
+from app.services.verification_token_service import create_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -73,6 +78,22 @@ async def signup(user_data: UserCreate, db: DBSession) -> User:
     db.add(user)
     await db.flush()
     await db.refresh(user)
+
+    # Issue verification token and queue welcome email (same transaction)
+    raw = await create_token(db, user_id=user.id, purpose=TokenPurpose.email_verification)
+    verify_url = f"{settings.frontend_url}/verify-email?token={raw}"
+    await enqueue(
+        db,
+        to=user.email,
+        template_name="registration",
+        context={
+            "user_first_name": first_name_from_email(user.email),
+            "verify_url": verify_url,
+            "expires_in_hours": settings.email_verification_token_expire_hours,
+        },
+        subject="Welcome to CreatorModo — verify your email",
+        idempotency_key=f"verify:{user.id}",
+    )
 
     return user
 
@@ -153,6 +174,17 @@ async def refresh_token(request: Request, response: Response, db: DBSession) -> 
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
+
+    # Reject refresh tokens issued before a password change
+    iat = payload.get("iat")
+    if iat is not None:
+        token_issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+        if token_issued_at < user.password_changed_at:
+            clear_auth_cookies(response)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired after password change. Please log in again.",
+            )
 
     # Generate new tokens
     new_access_token = auth_service.create_access_token(user.id, user.email)

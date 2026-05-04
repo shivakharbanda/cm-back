@@ -1,5 +1,6 @@
 """API dependencies including authentication."""
 
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -62,6 +63,16 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
+
+    # Reject access tokens issued before a password change
+    iat = payload.get("iat")
+    if iat is not None:
+        token_issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+        if token_issued_at < user.password_changed_at:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token invalidated. Please log in again.",
+            )
 
     return user
 
