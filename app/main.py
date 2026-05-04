@@ -4,7 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
+from app.api.limiter import limiter
 from app.api.routes import (
     auth_router,
     automations_router,
@@ -20,6 +23,7 @@ from app.api.routes import (
     social_links_router,
     utils_router,
 )
+from app.api.routes.email_auth import router as email_auth_router
 from app.config import settings
 from app.db import engine
 
@@ -38,6 +42,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Log environment settings on startup
 print(f"[CONFIG] is_development: {settings.is_development}")
 print(f"[CONFIG] Cookies secure flag: {not settings.is_development}")
@@ -54,6 +61,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(email_auth_router, prefix="/api/v1")
 app.include_router(instagram_router, prefix="/api/v1")
 app.include_router(automations_router, prefix="/api/v1")
 

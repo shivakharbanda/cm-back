@@ -12,6 +12,7 @@ from typing import Any
 from app.config import settings
 from app.db import async_session_maker
 from app.services.comment_processor import CommentProcessor
+from app.services.email.dispatcher import EmailDispatcher
 from app.services.rabbitmq_consumer import rabbitmq_consumer
 
 # Queue names - these are defined by the webhook service
@@ -53,47 +54,53 @@ class Worker:
         """Run the worker process."""
         logger.info("Starting automation worker...")
 
-        # Setup signal handlers for graceful shutdown (Unix only)
         try:
             loop = asyncio.get_running_loop()
             for sig in (signal.SIGINT, signal.SIGTERM):
                 loop.add_signal_handler(sig, self._handle_shutdown)
         except NotImplementedError:
-            # Windows doesn't support add_signal_handler
             logger.info("Signal handlers not supported on this platform")
 
+        # Email dispatcher only needs Postgres — start it before any RabbitMQ work.
+        # RabbitMQ consumer runs in its own retry loop; its failures don't touch email.
+        dispatch_task = asyncio.create_task(
+            EmailDispatcher(shutdown_event=self._shutdown_event).run()
+        )
+        consume_task = asyncio.create_task(self._run_rabbitmq_with_retry())
+
         try:
-            # Connect to RabbitMQ
-            await rabbitmq_consumer.connect()
+            await self._shutdown_event.wait()
+        finally:
+            for task in (consume_task, dispatch_task):
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            await rabbitmq_consumer.disconnect()
+            logger.info("Worker stopped")
 
-            # Start consuming comments
-            logger.info(f"Consuming from queue: {COMMENTS_QUEUE}")
-
-            # Run consumer until shutdown
-            consume_task = asyncio.create_task(
-                rabbitmq_consumer.consume(
+    async def _run_rabbitmq_with_retry(self) -> None:
+        """Connect to RabbitMQ and consume messages, retrying on any failure."""
+        while not self._shutdown_event.is_set():
+            try:
+                await rabbitmq_consumer.connect()
+                logger.info(f"Connected to RabbitMQ. Consuming from queue: {COMMENTS_QUEUE}")
+                await rabbitmq_consumer.consume(
                     queue_name=COMMENTS_QUEUE,
                     callback=self.process_comment,
                 )
-            )
-
-            # Wait for shutdown signal
-            await self._shutdown_event.wait()
-
-            # Cancel consume task
-            consume_task.cancel()
-            try:
-                await consume_task
             except asyncio.CancelledError:
-                pass
-
-        except Exception as e:
-            logger.error(f"Worker error: {e}", exc_info=True)
-            raise
-
-        finally:
-            await rabbitmq_consumer.disconnect()
-            logger.info("Worker stopped")
+                raise
+            except Exception as e:
+                if self._shutdown_event.is_set():
+                    return
+                logger.error(f"RabbitMQ error: {e}. Retrying in 10 seconds...")
+                try:
+                    await rabbitmq_consumer.disconnect()
+                except Exception:
+                    pass
+                await asyncio.sleep(10)
 
     def _handle_shutdown(self) -> None:
         """Handle shutdown signals."""

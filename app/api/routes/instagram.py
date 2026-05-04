@@ -14,6 +14,9 @@ from app.schemas.instagram import (
     InstagramPostResponse,
     InstagramPostsListResponse,
 )
+from app.config import settings
+from app.services.email.outbox import enqueue
+from app.services.email.renderer import first_name_from_email
 from app.services.instagram_client import GraphAPIError, instagram_client
 
 logger = logging.getLogger(__name__)
@@ -85,6 +88,21 @@ async def oauth_callback(
                 existing_account.instagram_user_id,
                 ["comments"],
             )
+            await enqueue(
+                db,
+                to=current_user.email,
+                template_name="instagram_connected",
+                context={
+                    "user_first_name": first_name_from_email(current_user.email),
+                    "instagram_handle": existing_account.username,
+                    "connected_label": "Reconnected just now",
+                    "account_type": "Professional",
+                    "create_automation_url": f"{settings.frontend_url}/automations/new",
+                    "disconnect_url": f"{settings.frontend_url}/settings",
+                },
+                subject="Instagram reconnected to CreatorModo",
+                idempotency_key=f"ig-connected:{existing_account.id}:{existing_account.username}",
+            )
             return existing_account
 
         # Create new account
@@ -110,6 +128,21 @@ async def oauth_callback(
             "instagram_webhook_subscribed ig_id=%s fields=%s",
             account.instagram_user_id,
             ["comments"],
+        )
+        await enqueue(
+            db,
+            to=current_user.email,
+            template_name="instagram_connected",
+            context={
+                "user_first_name": first_name_from_email(current_user.email),
+                "instagram_handle": account.username,
+                "connected_label": "Connected just now",
+                "account_type": "Professional",
+                "create_automation_url": f"{settings.frontend_url}/automations/new",
+                "disconnect_url": f"{settings.frontend_url}/settings",
+            },
+            subject="Instagram connected to CreatorModo",
+            idempotency_key=f"ig-connected:{account.id}",
         )
 
         return account

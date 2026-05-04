@@ -18,6 +18,23 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: automation_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: .
@@ -25,7 +42,9 @@ services:
     container_name: automation_api
     ports:
       - "8000:8000"
+    env_file: .env
     environment:
+      # Docker-internal overrides (take precedence over .env)
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
@@ -33,10 +52,11 @@ services:
       - DB_NAME=automation_db
       - APP_ENV=development
       - APP_DEBUG=true
-      - JWT_SECRET_KEY=dev-secret-key-change-in-production
-      - ENCRYPTION_KEY=
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     volumes:
       - ./app:/app/app
@@ -44,5 +64,29 @@ services:
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: automation_worker
+    env_file: .env
+    environment:
+      # Docker-internal overrides
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=automation_db
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+    command: python -m app.worker
+
 volumes:
   postgres_data:
+  rabbitmq_data:
