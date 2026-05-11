@@ -11,6 +11,8 @@ from app.api.routes.leads import router as leads_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.public_bio import router as public_bio_router
 from app.api.routes.social_links import router as social_links_router
+from app.api.routes.contact_submissions import router as contact_submissions_router
+from app.api.routes.notification_subscriptions import router as notification_subscriptions_router
 
 __all__ = [
     "auth_router",
@@ -27,4 +29,6 @@ __all__ = [
     "public_bio_router",
     "social_links_router",
     "utils_router",
+    "contact_submissions_router",
+    "notification_subscriptions_router",
 ]

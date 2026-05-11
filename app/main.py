@@ -22,6 +22,8 @@ from app.api.routes import (
     public_bio_router,
     social_links_router,
     utils_router,
+    contact_submissions_router,
+    notification_subscriptions_router,
 )
 from app.api.routes.email_auth import router as email_auth_router
 from app.config import settings
@@ -76,6 +78,8 @@ app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(public_bio_router, prefix="/api/v1")
 app.include_router(social_links_router, prefix="/api/v1")
 app.include_router(utils_router, prefix="/api/v1")
+app.include_router(contact_submissions_router, prefix="/api/v1")
+app.include_router(notification_subscriptions_router, prefix="/api/v1")
 
 
 @app.get("/health")
