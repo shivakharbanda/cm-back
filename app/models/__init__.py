@@ -13,6 +13,8 @@ from app.models.lead import Lead, SourceType
 from app.models.analytics_event import AnalyticsEvent, EventType
 from app.models.analytics_aggregate import AnalyticsAggregate, AggregateType
 from app.models.social_link import SocialLink, SocialPlatform
+from app.models.contact_submission import ContactSubmission
+from app.models.notification_subscription import NotificationSubscription
 
 __all__ = [
     "Base",
@@ -45,4 +47,6 @@ __all__ = [
     "AggregateType",
     "SocialLink",
     "SocialPlatform",
+    "ContactSubmission",
+    "NotificationSubscription",
 ]
