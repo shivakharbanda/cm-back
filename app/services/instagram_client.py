@@ -125,7 +125,7 @@ class InstagramClient:
             ("client_id", self.client_id),
             ("redirect_uri", self.redirect_uri),
             ("response_type", "code"),
-            ("scope", "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights"),
+            ("scope", "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments"),
         ]
         if state:
             params.append(("state", state))
