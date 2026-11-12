@@ -178,19 +178,22 @@ class CommentProcessor:
             )
             return True
 
-        logger.info(
-            f"Processing comment: {event.comment_id} on post {event.media_id} "
-            f"from @{event.commenter_username}"
-        )
-
         automations = await self._get_active_automations(event.media_id, event.account_id)
         if not automations:
+            # Also the path for accounts that disconnected: Meta keeps delivering their
+            # comments (Instagram Login documents no unsubscribe call), so drop them
+            # here without logging any commenter data.
             logger.debug(
                 f"No active automations for post {event.media_id} "
                 f"under account {event.account_id}"
             )
             return True
 
+        logger.info(f"Processing comment {event.comment_id} on post {event.media_id}")
+
+        # Meta allows one private reply per comment ("Only one message can be sent to
+        # the commenter"), so stop at the first automation that attempts a DM for it.
+        # Automations are ordered oldest-first, so the oldest matching one wins.
         for automation in automations:
             account = automation.instagram_account
             if not account:
@@ -198,7 +201,8 @@ class CommentProcessor:
                     f"Automation {automation.id} has no linked Instagram account"
                 )
                 continue
-            await self._process_automation(event, automation, account)
+            if await self._process_automation(event, automation, account):
+                break
 
         return True
 
@@ -220,6 +224,7 @@ class CommentProcessor:
                 Automation.is_active == True,  # noqa: E712
                 InstagramAccount.instagram_user_id == account_id,
             )
+            .order_by(Automation.created_at)
         )
         return list(result.scalars().unique().all())
 
@@ -228,8 +233,11 @@ class CommentProcessor:
         event: CommentEvent,
         automation: Automation,
         account: InstagramAccount,
-    ) -> None:
+    ) -> bool:
         """Process a single automation for a comment event.
+
+        Returns True when a DM has been attempted for this comment (now or on an
+        earlier delivery), meaning no other automation may send for it.
 
         Commits mid-flow — the 'pending' row MUST land before the Graph API call.
         """
@@ -239,7 +247,7 @@ class CommentProcessor:
             logger.debug(
                 f"Automation {automation.id} trigger condition not met for comment"
             )
-            return
+            return False
 
         # Self-comment guard — don't DM yourself.
         if event.commenter_id == account.instagram_user_id:
@@ -247,7 +255,7 @@ class CommentProcessor:
                 f"Skipping self-comment by business account "
                 f"{account.instagram_user_id} on automation {automation.id}"
             )
-            return
+            return False
 
         # Validate content.
         if (
@@ -257,7 +265,7 @@ class CommentProcessor:
             logger.warning(
                 f"Automation {automation.id} is text-based but has no message template."
             )
-            return
+            return False
         if (
             automation.message_type == MessageType.CAROUSEL
             and not automation.carousel_elements
@@ -265,7 +273,7 @@ class CommentProcessor:
             logger.warning(
                 f"Automation {automation.id} is carousel-based but has no elements."
             )
-            return
+            return False
         if (
             automation.message_type == MessageType.BUTTON
             and not automation.button_template
@@ -273,7 +281,16 @@ class CommentProcessor:
             logger.warning(
                 f"Automation {automation.id} is button-based but has no template."
             )
-            return
+            return False
+
+        # One private reply per comment across ALL automations. The per-automation
+        # dedup slot below can't see this: on a webhook re-delivery, automation A
+        # skips (its slot is 'sent') and B would otherwise send a second DM.
+        if await self._comment_already_messaged(event.comment_id):
+            logger.info(
+                f"DM already attempted for comment {event.comment_id} — skipping"
+            )
+            return True
 
         # Refresh token if it's near expiry. A single refresh per automation is
         # fine: this hot path is already rate-limited by IG webhook volume.
@@ -288,11 +305,14 @@ class CommentProcessor:
             commenter_profile=commenter_profile,
         )
         if log_id is None:
+            # This commenter already got a DM from this automation for an earlier
+            # comment on the post. This comment has none yet, so a later automation
+            # may still send for it.
             logger.info(
-                f"DM already attempted for @{event.commenter_username} "
-                f"on automation {automation.id} — skipping"
+                f"DM already attempted for this commenter on automation "
+                f"{automation.id} (comment {event.comment_id}) — skipping"
             )
-            return
+            return False
 
         # Row is committed as 'pending'. The Graph API call is now the only
         # side effect that can still fail, and we've guaranteed at-most-once
@@ -327,6 +347,23 @@ class CommentProcessor:
                 commenter_profile=commenter_profile,
                 status="sent" if reply_success else "failed",
             )
+
+        return True
+
+    async def _comment_already_messaged(self, comment_id: str) -> bool:
+        """True if any automation holds a non-failed DM row for this exact comment.
+
+        'failed' rows are excluded so the retry path can re-claim them.
+        """
+        result = await self.db.execute(
+            select(DMSentLog.id)
+            .where(
+                DMSentLog.comment_id == comment_id,
+                DMSentLog.status != DM_STATUS_FAILED,
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
 
     def _should_trigger(self, event: CommentEvent, automation: Automation) -> bool:
         """Check if the automation should trigger for this comment."""
@@ -516,13 +553,13 @@ class CommentProcessor:
 
             message_id = response.get("message_id") if isinstance(response, dict) else None
             logger.info(
-                f"DM sent to @{event.commenter_username} message_id={message_id}"
+                f"DM sent for comment {event.comment_id} message_id={message_id}"
             )
             return DMSendResult(status=DM_STATUS_SENT)
 
         except PermanentGraphAPIError as e:
             logger.warning(
-                f"Permanent DM failure for @{event.commenter_username}: "
+                f"Permanent DM failure for comment {event.comment_id}: "
                 f"status={e.status_code} meta_code={e.meta_code} "
                 f"meta_subcode={e.meta_subcode} msg={e}"
             )
@@ -535,7 +572,7 @@ class CommentProcessor:
 
         except RetryableGraphAPIError as e:
             logger.warning(
-                f"Retryable DM failure for @{event.commenter_username}: "
+                f"Retryable DM failure for comment {event.comment_id}: "
                 f"status={e.status_code} meta_code={e.meta_code} "
                 f"meta_subcode={e.meta_subcode} msg={e}"
             )
@@ -549,7 +586,7 @@ class CommentProcessor:
 
         except Exception as e:
             logger.error(
-                f"Unclassified DM failure for @{event.commenter_username}: {e}",
+                f"Unclassified DM failure for comment {event.comment_id}: {e}",
                 exc_info=True,
             )
             return DMSendResult(status=DM_STATUS_FAILED, error_message=str(e))
@@ -564,20 +601,18 @@ class CommentProcessor:
         try:
             access_token = instagram_client.decrypt_token(account.access_token)
 
-            response = await instagram_client.reply_to_comment(
+            await instagram_client.reply_to_comment(
                 access_token=access_token,
                 comment_id=event.comment_id,
                 message=automation.comment_reply_template,
             )
 
-            logger.info(
-                f"Comment reply sent to @{event.commenter_username}: {response}"
-            )
+            logger.info(f"Comment reply sent for comment {event.comment_id}")
             return True
 
         except Exception as e:
             logger.error(
-                f"Failed to reply to comment from @{event.commenter_username}: {e}"
+                f"Failed to reply to comment {event.comment_id}: {e}"
             )
             return False
 

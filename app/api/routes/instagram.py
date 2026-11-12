@@ -212,8 +212,22 @@ async def list_posts(
 
         return InstagramPostsListResponse(posts=posts, next_cursor=next_cursor)
 
-    except Exception as e:
+    except GraphAPIError as e:
+        # Message comes from Meta's error body, not the request URL, so it holds no token.
+        logger.warning(
+            "instagram_posts_fetch_failed status=%s meta_code=%s",
+            e.status_code,
+            e.meta_code,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch posts: {str(e)}",
+            detail=f"Failed to fetch posts: {e}",
+        )
+    except Exception:
+        # Never echo arbitrary exception text: httpx errors include the request URL,
+        # and /me/media carries the access token as a query param.
+        logger.exception("instagram_posts_fetch_failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch posts",
         )
