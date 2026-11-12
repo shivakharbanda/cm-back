@@ -1,5 +1,6 @@
 """Instagram OAuth and Graph API client."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -8,6 +9,11 @@ import httpx
 from cryptography.fernet import Fernet
 
 from app.config import settings
+
+# httpx logs every request URL at INFO. Some Graph endpoints (media list, token
+# exchange/refresh) take access_token as a query param, so at INFO those lines
+# would write live tokens to the logs. Applies to every process importing this.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 MEDIA_FIELDS = "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username"
 
@@ -228,7 +234,11 @@ class InstagramClient:
                 f"{self.base_url}/me/media",
                 params=params,
             )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                # `from None`: httpx's message embeds the request URL, which carries the token.
+                raise _classify_http_error(e) from None
             return response.json()
 
     async def refresh_long_lived_token(self, access_token: str) -> dict[str, Any]:
@@ -241,7 +251,11 @@ class InstagramClient:
                     "access_token": access_token,
                 },
             )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                # `from None`: httpx's message embeds the request URL, which carries the token.
+                raise _classify_http_error(e) from None
             data = response.json()
 
             expires_in = data.get("expires_in", 5184000)
